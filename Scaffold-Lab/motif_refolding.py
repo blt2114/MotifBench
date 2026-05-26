@@ -28,11 +28,12 @@ import rootutils
 import shutil
 import GPUtil
 from pathlib import Path
-from typing import Optional, Dict, Union, List
+from typing import Optional, Dict, Union, List, Tuple
 from omegaconf import DictConfig, OmegaConf
 from collections import defaultdict
 
 import esm
+import biotite.structure as struc
 import biotite.structure.io as strucio
 from biotite.sequence.io import fasta
 
@@ -247,11 +248,12 @@ class MotifRefolder:
                 self._log.info(f'No positions need to be redesigned.')
 
             # Will return standard mapping list and fixed positions if no residue within motifs need to be redesigned
-            redesign_mapping_dict, redesign_position_list, fixed_idx_for_mpnn = au.motif_mapping(
+            motif_mapping_info = au.motif_mapping(
                 motif_indices=motif_indices, 
                 redesign_positions=redesign_info, 
                 contig=contig
                 )
+            redesign_mapping_dict, redesign_position_list, fixed_idx_for_mpnn, native_fixed_keys = motif_mapping_info
             
             # Check if residues starts from 1. If res starts from 0, re-index the pdb file.
             # This will overwrite original protein if the starting index is not 1.
@@ -299,7 +301,8 @@ class MotifRefolder:
             # Extract motif with all backbone atoms for subsequent
             # motif_rmsd computation on predicted folded structure.
             design_motif = au.motif_extract(design_contig, design_pdb, atom_part="backbone")
-            reference_motif = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
+            reference_motif_bb = au.motif_extract(reference_contig, reference_pdb, atom_part="backbone")
+            reference_motif_aa = au.motif_extract(reference_contig, reference_pdb, atom_part="all-atom")
 
 
             if self._infer_conf.force_motif_AA_type and motif_AA_correct == False:
@@ -330,8 +333,10 @@ class MotifRefolder:
                     motif_mask=mask,
                     fixed_indices=fixed_idx_for_mpnn,
                     backbone_motif_rmsd=backbone_motif_rmsd,
-                    ref_motif=reference_motif,
-                    sample_contig=design_contig
+                    ref_motif_bb=reference_motif_bb,
+                    ref_motif_aa=reference_motif_aa,
+                    sample_contig=design_contig,
+                    motif_mapping_info=motif_mapping_info
                 )
             self._log.info(f'Done sample: {pdb_path}')
 
@@ -350,8 +355,11 @@ class MotifRefolder:
             fixed_indices: Optional[Union[List, str]]=None,
             backbone_motif_rmsd: Optional[float]=None,
             complex_motif: Optional[List]=None,
-            ref_motif=None,
-            sample_contig=None
+            ref_motif_bb: struc.AtomArray = None,
+            ref_motif_aa: struc.AtomArray = None,
+            sample_contig: str = None,
+            # These are for calculating sidechain rmsd
+            motif_mapping_info: Optional[Tuple[Dict[str, str], List, List, List]] = None
             ):
         """Run self-consistency on design proteins against reference protein.
 
@@ -362,7 +370,8 @@ class MotifRefolder:
             fixed_indices: Optionial list-like object indicating which positions are allowed to be redesigned.
             backbone_motif_rmsd: The Motif-RMSD between the motifs of designed generated backbones (without refold) and native motifs.
             complex_motif: (TBD) Add features for complex motif calculation.
-            ref_motif: Motif 3D corrdinates of native PDBs. Represented by backbone atoms.
+            ref_motif_bb: Backbone atom coordinates in reference PDB.
+            ref_motif_aa: All-atom coordinates in reference PDB. Used to calculate side chain related metrics.
             sample_contig: The contig indicating the motif locations on designed backbones to calculating Motif-RMSD.
 
         Returns:
@@ -491,7 +500,9 @@ class MotifRefolder:
             'backbone_motif_rmsd': [],
             'motif_rmsd': [],
             'mpnn_score': [],
-            'sample_idx': []
+            'sample_idx': [],
+            'fixedpos_sidechain_rmsd': [],
+            'fixedpos_aa_rmsd': []
         }
         if motif_mask is not None:
             # Only calculate motif RMSD if mask is specified.
@@ -547,7 +558,7 @@ class MotifRefolder:
                 sample_seq = su.aatype_to_seq(sample_feats['aatype'])
 
                 esm_predict_motif = au.motif_extract(sample_contig, esmf_sample_path, atom_part="backbone")
-                motif_rmsd = au.rmsd(ref_motif, esm_predict_motif)
+                motif_rmsd = au.rmsd(ref_motif_bb, esm_predict_motif)
                 mpnn_results['motif_rmsd'].append(f'{motif_rmsd:.3f}')
                 # Calculate scTM of ESMFold outputs with reference protein
                 _, tm_score = su.calc_tm_score(
@@ -566,6 +577,15 @@ class MotifRefolder:
                     mpnn_results['refold_motif_rmsd'].append(f'{refold_motif_rmsd:.3f}')
                 if backbone_motif_rmsd is not None:
                     mpnn_results['backbone_motif_rmsd'].append(f'{backbone_motif_rmsd:.3f}')
+                    
+                # Sidechain RMSD
+                sidechain_rmsd, aa_rmsd, _, _, _, _ = au.compute_sidechain_rmsd(
+                    refolded_path=esmf_sample_path,
+                    native_motif_array=ref_motif_aa,
+                    mapping=motif_mapping_info,
+                    design_chain="A"
+                )
+
                 mpnn_results['sample_idx'].append(int(idx))
                 mpnn_results['rmsd'].append(f'{rmsd:.3f}')
                 mpnn_results['tm_score'].append(f'{tm_score:.3f}')
@@ -577,6 +597,8 @@ class MotifRefolder:
                 mpnn_results['plddt'].append(f'{plddt:.3f}')
                 mpnn_results['length'].append(len(string))
                 mpnn_results['mpnn_score'].append(f'{score:.3f}')
+                mpnn_results['fixedpos_sidechain_rmsd'].append(f'{sidechain_rmsd:.3f}')
+                mpnn_results['fixedpos_aa_rmsd'].append(f'{aa_rmsd:.3f}')
 
             # Save results to CSV
             esm_csv_path = os.path.join(decoy_pdb_dir, 'esm_eval_results.csv')
@@ -611,9 +633,16 @@ class MotifRefolder:
                 sample_seq = su.aatype_to_seq(sample_feats['aatype'])
 
                 af2_predict_motif = au.motif_extract(sample_contig, af2_sample_path, atom_part="backbone")
-                motif_rmsd = au.rmsd(ref_motif, af2_predict_motif)
+                motif_rmsd = au.rmsd(ref_motif_bb, af2_predict_motif)
                 af2_outputs[f'sample_{idx}']['motif_rmsd'] = f'{motif_rmsd:.3f}'
 
+                # Sidechain RMSD
+                sidechain_rmsd, aa_rmsd, _, _, _, _ = au.compute_sidechain_rmsd(
+                    refolded_path=af2_sample_path,
+                    native_motif_array=ref_motif_aa,
+                    mapping=motif_mapping_info,
+                    design_chain="A"
+                )
 
                 # Calculation
                 _, tm_score = su.calc_tm_score(
@@ -636,7 +665,10 @@ class MotifRefolder:
                 af2_outputs[f'sample_{idx}']['length'] = len(string)
                 af2_outputs[f'sample_{idx}']['mpnn_score'] = f'{score:.3f}'
                 af2_outputs[f'sample_{idx}']['sample_idx'] = int(idx)
-            print(f'final_outputs: {af2_outputs}')
+                af2_outputs[f'sample_{idx}']['fixedpos_sidechain_rmsd'] = f'{sidechain_rmsd:.3f}'
+                af2_outputs[f'sample_{idx}']['fixedpos_aa_rmsd'] = f'{aa_rmsd:.3f}'
+
+            self._log.info(f'final_outputs: {af2_outputs}')
             af2_csv_path = os.path.join(decoy_pdb_dir, 'af2_eval_results.csv')
             af2_df = pd.DataFrame.from_dict(af2_outputs, orient='index')
             af2_df.reset_index(inplace=True)
@@ -778,13 +810,41 @@ class MotifEvaluator:
         results_df, pdb_count = au.csv_merge(root_dir=self._result_dir, prefix=prefix)
 
         # Analyze outputs
-        complete_results, summary_results, designability_count, backbones, closest_contender = au.analyze_success_rate(
+        complete_results, summary_results, designability_count, successful_backbones, closest_contender = au.analyze_success_rate(
             merged_data=results_df, group_mode="all", prefix=prefix
         )
 
+        # Steric clashes
+        clash_records = []
+        backbone_set = set(complete_results['backbone_path'])
+        for bb in backbone_set:
+            num_ca_clashes, clash_score, n_atoms = au.clash_metrics_from_pdb(bb)
+            clash_records.append({
+                "backbone_path": bb,
+                "num_ca_clashes": num_ca_clashes,
+                "clash_score": clash_score,
+                "n_atoms": n_atoms,
+            })
+        clash_results = pd.DataFrame(
+            clash_records,
+            columns=["backbone_path", "num_ca_clashes", "clash_score", "n_atoms"]
+        )
+        avg_num_ca_clashes = clash_results["num_ca_clashes"].mean() if len(clash_results) > 0 else 0.0
+        avg_clash_score = clash_results["clash_score"].mean() if len(clash_results) > 0 else 0.0
+
+        # Write summaries
         summary_csv_path = os.path.join(self._result_dir, f"{prefix}_summary_results.csv")
         complete_csv_path = os.path.join(self._result_dir, f"{prefix}_complete_results.csv")
+        clash_csv_path = os.path.join(self._result_dir, f"{prefix}_clashes.csv")
         complete_results.to_csv(complete_csv_path, index=False)
+        clash_results.to_csv(clash_csv_path, index=False)
+
+        self._log.info(
+            f"Steric clash metrics written to {clash_csv_path}. "
+            f"Average num_ca_clashes: {avg_num_ca_clashes:.3f}; "
+            f"Average clash_score: {avg_clash_score:.3f}"
+        )
+
         summary_column_order = [
             "sample_idx",
             "Success",
@@ -810,7 +870,7 @@ class MotifEvaluator:
         else:
             self._log.info(f"There will not be closest contender since no designable scaffold detected.")
 
-        return complete_results, backbones, designability_count, pdb_count, closest_contender
+        return complete_results, successful_backbones, designability_count, pdb_count, closest_contender
 
 
     def _evaluate_diversity(
@@ -958,8 +1018,8 @@ class MotifEvaluator:
             prefix = "esm" if method == "ESMFold" else "af2"
 
             # Process results and calculate diversity and novelty
-            complete_results, backbones, designability_count, pdb_count, closest_contender = self._process_results(prefix)
-            diversity, successful_backbone_dir, unique_clusters, clusters_information = self._evaluate_diversity(backbones, prefix)
+            complete_results, successful_backbones, designability_count, pdb_count, closest_contender = self._process_results(prefix)
+            diversity, successful_backbone_dir, unique_clusters, clusters_information = self._evaluate_diversity(successful_backbones, prefix)
             novelty_score = self._evaluate_novelty(
                 complete_results=complete_results,
                 successful_backbone_dir=successful_backbone_dir,

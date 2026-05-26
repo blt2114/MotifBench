@@ -53,12 +53,12 @@ we provide details and scripts used to create this example [here](./example/read
 
 For each benchmark problem, create a directory with 100 designed scaffolds as PDB files and a metadata csv file.
 * Each scaffold should follow the naming format `{test_case}_{sample_number}.pdb`, where `{test_case}` is the concatenation of the problem number and the PDB ID (e.g. `01_1LDB`) and  `sample_number` is zero-indexed (e.g. `01_1LDB_0.pdb, 01_1LDB_1.pdb,...,01_1LDB_99.pdb`).
-* The PDB should be **1-indexed**, i.e. the residue number should starts from **1**.
+* The PDB files should be **1-indexed**, i.e. the residue number should starts from **1**.
 * The metadata file must be named `scaffold_info.csv` and contain two columns:
   * `sample_num`: The sample number for each backbone. This should be range from $0$ to $99$. 
   * `motif_placements`: The order of multiple motif segments in backbones. For example, for a motif with 3 segments (chains `A` and `B` in the motif_pdb file) the string `12/B/15/A/29` indicates that the full backbone chain comprises 12 residues of scaffold, then the residues of motif segment B, then another 15 residues of scaffold, then the residues of motif segment A, and finally another 29 residues of scaffold.  If placement is such that the backbone begins (respectively _ends_) with a motif segment the motif_placements string starts with the motif chain for example as `B/15/A/29` (respectively `12/B/15/A`).
 
-The organize the scaffold and metadata files as below:
+  The organize the scaffold and metadata files as below:
 ```bash
 scaffolds/
 ├── {case_1} # Name of tested case, e.g. "01_1LDB"
@@ -158,17 +158,18 @@ Example summary files by problem are included on [zenodo](https://zenodo.org/rec
 
 ### The MofifBench V0 Leaderboard
 
-| Entry Name      | MotifBench Score | Date (month/year) | Contact Name               | Contact Email                             | Estimated compute time (per scaffold) | Project Link                                                 |
-| --------------- | ---------------- | ----------------- | -------------------------- | ----------------------------------------- | ------------------------------------- | ------------------------------------------------------------ |
-| ODesign-rigid   | 29.39            | 11/2025           | ODesign team               | odesign@lglab.ac.cn                       | ~5.2s (NVIDIA GeForce 4090D)          | [Paper](https://arxiv.org/abs/2510.22304) \| [Codebase](https://github.com/The-Institute-for-AI-Molecular-Design/ODesign) |
-| Protpardelle-1c | 27.83            | 07/2025           | Tianyu Lu                  |                                           | ~3s (NVIDIA A100)                     | [Paper](https://www.biorxiv.org/content/10.1101/2025.08.18.670959v2) \| [Codebase](https://github.com/ProteinDesignLab/protpardelle-1c/tree/main) |
-| Proteina        | 25.46            | 11/2025           | ODesign team, Zhuoqi Zheng | odesign@lglab.ac.cn, h2knight@sjtu.edu.cn | ~15s (NVIDIA A6000)                   | [Paper](https://arxiv.org/abs/2503.00710) \| [Codebase](https://github.com/NVIDIA-Digital-Bio/proteina/) |
-| ODesign-flex    | 25.01            | 11/2025           | ODesign team               | odesign@lglab.ac.cn                       | ~5.2s (NVIDIA GeForce 4090D)          | [Paper](https://arxiv.org/abs/2510.22304) \| [Codebase](https://github.com/The-Institute-for-AI-Molecular-Design/ODesign) |
-| RFdiffusion     | 21.95            | 02/2025           | Brian Trippe               | btrippe@stanford.edu                      | ~ 37.2s (Various GPU types)           | [Paper](https://www.nature.com/articles/s41586-023-06415-8) \| [Codebase](https://github.com/RosettaCommons/RFdiffusion) |
-| RFdiffusionAA   | 20.99            | 11/2025           | ODesign team               | odesign@lglab.ac.cn                       |                                       | [Paper](https://www.science.org/doi/10.1126/science.adl2528) \| [Codebase](https://github.com/baker-laboratory/rf_diffusion_all_atom) |
-| Genie2          | 20.83            |                   | Yeqing Lin, Brian Trippe   |                                           | ~48s (NVIDIA A6000)                   | [Paper](https://arxiv.org/abs/2405.15489) \| [Codebase](https://github.com/aqlaboratory/genie2) |
-| GPDL            | 15.94            | 08/2025           | Bo Zhang                   | b-zhang23@mails.tsinghua.edu.cn           | ~30min (NVIDIA GeForce 4090)          | [Paper](https://www.sciencedirect.com/science/article/pii/S0141813025089986?via%3Dihub) \| [Codebase](https://github.com/sirius777coder/GPDL) |
-| ESM3            | 11.38            |                   |                            |                                           | ~14.4s (Various GPU types)            | [Paper](https://www.science.org/doi/10.1126/science.ads0018) \| [Codebase](https://github.com/evolutionaryscale/esm) |
+| Entry Name                   | MotifBench Score | Date (month/year) | Contact Name                  | Contact Email                             | Estimated compute time (per scaffold) | Metadata                            |                         Project Link                         |
+| ---------------------------- | ---------------- | ----------------- | ----------------------------- | ----------------------------------------- | ------------------------------------- | ----------------------------------- | :----------------------------------------------------------: |
+| Protpardelle-1c (cc91-large) | 33.81            | 04/2026           | Tianyu Lu, Jessica Jiaxin Lin | tianyulu@stanford.edu, linjj@stanford.edu | ~3s (NVIDIA A100)                     | https://zenodo.org/records/19828416 | [Paper](https://www.biorxiv.org/content/10.1101/2025.08.18.670959v2) \|[Codebase](https://github.com/ProteinDesignLab/protpardelle-1c/tree/main) |
+| ODesign-rigid                | 29.39            | 11/2025           | ODesign team                  | odesign@lglab.ac.cn                       | ~5.2s (NVIDIA GeForce 4090D)          | https://zenodo.org/records/19201706 | [Paper](https://arxiv.org/abs/2510.22304) \| [Codebase](https://github.com/The-Institute-for-AI-Molecular-Design/ODesign) |
+| Protpardelle-1c              | 27.83            | 07/2025           | Tianyu Lu                     | tianyulu@stanford.edu                     | ~3s (NVIDIA A100)                     | https://zenodo.org/records/15612060 | [Paper](https://www.biorxiv.org/content/10.1101/2025.08.18.670959v2) \| [Codebase](https://github.com/ProteinDesignLab/protpardelle-1c/tree/main) |
+| Proteina                     | 25.46            | 11/2025           | ODesign team, Zhuoqi Zheng    | odesign@lglab.ac.cn, h2knight@sjtu.edu.cn | ~15s (NVIDIA A6000)                   | https://zenodo.org/records/19204034 | [Paper](https://arxiv.org/abs/2503.00710) \| [Codebase](https://github.com/NVIDIA-Digital-Bio/proteina/) |
+| ODesign-flex                 | 25.01            | 11/2025           | ODesign team                  | odesign@lglab.ac.cn                       | ~5.2s (NVIDIA GeForce 4090D)          | https://zenodo.org/records/19201872 | [Paper](https://arxiv.org/abs/2510.22304) \| [Codebase](https://github.com/The-Institute-for-AI-Molecular-Design/ODesign) |
+| RFdiffusion                  | 21.95            | 02/2025           | Brian Trippe                  | btrippe@stanford.edu                      | ~ 37.2s (Various GPU types)           | https://zenodo.org/records/16718874 | [Paper](https://www.nature.com/articles/s41586-023-06415-8) \| [Codebase](https://github.com/RosettaCommons/RFdiffusion) |
+| RFdiffusionAA                | 20.99            | 11/2025           | ODesign team                  | odesign@lglab.ac.cn                       | ~ 6.5min (NVIDIA GeForce 4090D)       | https://zenodo.org/records/19202010 | [Paper](https://www.science.org/doi/10.1126/science.adl2528) \| [Codebase](https://github.com/baker-laboratory/rf_diffusion_all_atom) |
+| Genie2                       | 20.83            | 07/2025           | Yeqing Lin, Brian Trippe      |                                           | ~48s (NVIDIA A6000)                   |                                     | [Paper](https://arxiv.org/abs/2405.15489) \| [Codebase](https://github.com/aqlaboratory/genie2) |
+| GPDL                         | 15.94            | 08/2025           | Bo Zhang                      | b-zhang23@mails.tsinghua.edu.cn           | ~30min (NVIDIA GeForce 4090)          | https://zenodo.org/records/16719965 | [Paper](https://www.sciencedirect.com/science/article/pii/S0141813025089986?via%3Dihub) \| [Codebase](https://github.com/sirius777coder/GPDL) |
+| ESM3                         | 11.38            | 05/2025           | Wei Deng                      | yaowei@stanford.edu                       | ~14.4s (Various GPU types)            | https://zenodo.org/records/16545975 | [Paper](https://www.science.org/doi/10.1126/science.ads0018) \| [Codebase](https://github.com/evolutionaryscale/esm) |
 
 
 ### Instructions for having your results added to the leaderboard
@@ -190,4 +191,4 @@ This repository builds heavily on several existing codebases:
 * [Foldseek](https://github.com/steineggerlab/foldseek) is used for structural clustering and novelty evaluation.
 If you use the scripts herein in published research, please consider crediting these resources.
 
-We also thank Yeqing Lin, Wei Deng, and Marvin Li for suggestions that have improved MotifBench.
+We also thank Yeqing Lin, Wei Deng, Marvin Li for suggestions that improved the usability of the benchmark.

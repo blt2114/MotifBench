@@ -7,8 +7,9 @@ import shutil
 import json
 import logging
 import glob
+import math
 import pandas as pd
-from typing import Optional, Union, List, Tuple, Dict
+from typing import Optional, Union, List, Tuple, Dict, Literal
 from pathlib import Path
 from datetime import datetime
 from tabulate import tabulate
@@ -30,9 +31,11 @@ from pymol import cmd
 
 log = logging.getLogger(__name__)
 
+BACKBONE_ATOMS = {'N', 'CA', 'C', 'O', 'OXT'}
+
 def reference_motif_extract(
     structure_path: Union[str, struc.AtomArray],
-    atom_part: Optional[str] = "all-atom",
+    atom_part: Optional[Literal["all-atom", "CA", "backbone"]] = "all-atom",
 ) -> struc.AtomArray:
     """Extracting motif from input protein structure.
 
@@ -80,7 +83,7 @@ def reference_motif_extract(
 def motif_extract(
     position: str,
     structure_path: Union[str, struc.AtomArray],
-    atom_part: Optional[str] = "all-atom",
+    atom_part: Optional[Literal["all-atom", "CA", "backbone"]] = "all-atom",
     split_char: str = "/"
 ) -> struc.AtomArray:
     """Extracting motif positions from input protein structure.
@@ -127,7 +130,6 @@ def motif_extract(
 def rmsd(
     reference: Union[str, struc.AtomArray],
     target: Union[str, struc.AtomArray],
-
 ) -> float:
 
     # Handle input protein type
@@ -792,7 +794,6 @@ def analyze_success_rate(
         success_count = dict.fromkeys(merged_data['PDB id'].unique(), 0)
         success_per_pdb = merged_data[merged_data['Success'] == True].groupby('PDB id')['backbone_path'].nunique()
         success_count.update(success_per_pdb.to_dict())
-
         successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
 
     #print(f'merged_data.columns: {set(merged_data.columns)}')
@@ -810,7 +811,6 @@ def analyze_success_rate(
     else:
         closest_contender = None
         closest_contender_df = None
-
 
     return merged_data, summary_data, success_count, successful_backbones, closest_contender_df
 
@@ -1151,6 +1151,14 @@ def quantize_redesign_positions(redesign_info: str) -> List[str]:
     return redesign_list
 
 
+def superimpose_rmsd(mobile_xyz: np.ndarray, target_xyz: np.ndarray) -> float:
+    """Align mobile->target by Kabsch (biotite superimpose), then RMSD via biotite.structure.rmsd."""
+    if mobile_xyz.shape != target_xyz.shape or mobile_xyz.size == 0:
+        return math.nan
+    mobile_aligned, _ = struc.superimpose(target_xyz, mobile_xyz)
+    return float(struc.rmsd(target_xyz, mobile_aligned))
+
+
 def motif_mapping(
     motif_indices: List[int],
     redesign_positions: Optional[str], # Will be `None` if no residues are to be redesigned 
@@ -1193,12 +1201,14 @@ def motif_mapping(
                 break
 
     # Filter out the redesign positions from the mapping
-    updated_indices = [
+    updated_indices_for_mpnn = [
         index for native_key, index in native_to_index.items()
         if native_key not in redesign_list
     ]
 
-    return (native_to_index, redesign_list, updated_indices)
+    fixed_native = [k for k in native_to_index.keys() if k not in redesign_list]
+
+    return (native_to_index, redesign_list, updated_indices_for_mpnn, fixed_native)
 
 
 def check_motif_AA_type(
@@ -1303,6 +1313,226 @@ def reindex_pdb_residues(
         log.info(f"Original PDB file starts from residue {original_start_index},\
             reindexed to start from {reindex_start} and saved to {output_file}")
         return False
+
+
+def get_sidechain_atoms(array: struc.AtomArray) -> struc.AtomArray:
+    """Extract sidechain atoms (excluding backbone ones)."""
+    aa_mask = struc.filter_amino_acids(array)
+    bb_mask = np.isin(array.atom_name, list(BACKBONE_ATOMS))
+    return array[aa_mask & ~bb_mask]
+
+
+def get_residue_subset(array: struc.AtomArray, chain_id: str, res_id: int) -> struc.AtomArray:
+    """Extract a specific group of residues by chain and residue IDs."""
+    return array[(array.chain_id == chain_id) & (array.res_id == res_id)]
+
+
+def _residue_atom_pairs(
+    native_res: struc.AtomArray,
+    design_res: struc.AtomArray,
+    atom_mode: Literal["sidechain", "backbone", "all-atom"],
+) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    """
+    Extract a pair of atoms from either side-chain, backbone or all-atoms.
+    atom_mode
+        "sidechain": Extract side chain atoms (excluding backbone atoms)
+        "backbone": Extract only backbone atoms
+        "all-atom": Extract both side chain and backbone atoms 
+    """
+    if atom_mode == "sidechain":
+        native_sel = get_sidechain_atoms(native_res)
+        design_sel = get_sidechain_atoms(design_res)
+    elif atom_mode == "backbone":
+        n_mask = np.isin(native_res.atom_name, list(BACKBONE_ATOMS))
+        d_mask = np.isin(design_res.atom_name, list(BACKBONE_ATOMS))
+        native_sel = native_res[n_mask]
+        design_sel = design_res[d_mask]
+    elif atom_mode == "all-atom":
+        native_sel = native_res
+        design_sel = design_res
+
+    n_names = np.array(native_sel.atom_name)
+    d_names = np.array(design_sel.atom_name)
+    common_names = sorted(set(n_names).intersection(set(d_names)))
+    if len(common_names) == 0:
+        return [], []
+
+    n_xyz = []
+    d_xyz = []
+    for aname in common_names:
+        n_atom = native_sel[native_sel.atom_name == aname]
+        d_atom = design_sel[design_sel.atom_name == aname]
+        if n_atom.array_length() == 0 or d_atom.array_length() == 0:
+            continue
+        n_xyz.append(np.asarray(n_atom.coord[0], dtype=float))
+        d_xyz.append(np.asarray(d_atom.coord[0], dtype=float))
+
+    return n_xyz, d_xyz
+
+
+def _compute_metrics_for_positions(
+    design_array: struc.AtomArray,
+    native_motif_array: struc.AtomArray,
+    mapping: Tuple[Dict[str, str], List, List, List],
+    atom_mode: Literal["sidechain", "backbone", "all-atom"],
+    require_same_aa: bool,
+    skip_native_unk: bool,
+    design_chain: str = "A"
+) -> Tuple[float, int, int]:
+    native_coords = []
+    design_coords = []
+    used_res = 0
+
+    for native_key in mapping[3]:
+        # Get indices in reference motif
+        scaffold_idx = mapping[0].get(native_key)
+        if scaffold_idx is None:
+            continue
+        native_chain = native_key[0]
+        native_resid = int(native_key[1:])
+
+        native_res = get_residue_subset(native_motif_array, native_chain, native_resid)
+        if native_res.array_length() == 0: continue
+        if skip_native_unk and native_res.res_name[0] == "UNK": continue
+
+        design_res = get_residue_subset(design_array, design_chain, scaffold_idx)
+        if design_res.array_length() == 0: continue
+        if require_same_aa and design_res.res_name[0] != native_res.res_name[0]: continue
+
+        #print(native_key, scaffold_idx)
+        #print("native:", native_res.res_name[0], list(native_res.atom_name))
+        #print("design:", design_res.res_name[0], list(design_res.atom_name))
+
+        n_xyz, d_xyz = _residue_atom_pairs(native_res, design_res, atom_mode=atom_mode)
+        if len(n_xyz) == 0: 
+            continue
+        native_coords.extend(n_xyz)
+        design_coords.extend(d_xyz)
+        used_res += 1
+
+    if len(native_coords) < 3:
+        return math.nan, len(native_coords), used_res
+
+    n_arr = np.vstack(native_coords)
+    d_arr = np.vstack(design_coords)
+    rmsd_val = superimpose_rmsd(d_arr, n_arr)
+    #print(f"n_arr: {n_arr}, d_arr: {d_arr}, rmsd_val {rmsd_val}")
+
+    return rmsd_val, int(len(native_coords)), used_res
+
+
+def compute_sidechain_rmsd(
+    refolded_path: Union[str, Path],
+    native_motif_array: struc.AtomArray,
+    mapping: Tuple,
+    design_chain: str = "A"
+) -> Dict[str, float]:
+    design_array = strucio.load_structure(refolded_path, model=1)
+
+    sidechain_rmsd, sidechain_n_atoms, sidechain_nres = _compute_metrics_for_positions(
+        design_array=design_array,
+        native_motif_array=native_motif_array,
+        mapping=mapping,
+        atom_mode="sidechain",
+        require_same_aa=True,
+        skip_native_unk=True,
+        design_chain=design_chain
+    )
+    # print(f"sidechain: rmsd {sidechain_rmsd}, natoms {sidechain_n_atoms}, nres{sidechain_nres}")
+
+    aa_rmsd, aa_n_atoms, aa_nres = _compute_metrics_for_positions(
+        design_array=design_array,
+        native_motif_array=native_motif_array,
+        mapping=mapping,
+        atom_mode="all-atom",
+        require_same_aa=True,
+        skip_native_unk=True,
+        design_chain=design_chain
+    )
+    # print(f"allatom: rmsd {aa_rmsd}, natoms {aa_n_atoms} nres {aa_nres}")
+
+    return [sidechain_rmsd, aa_rmsd, sidechain_n_atoms, sidechain_nres, aa_n_atoms, aa_nres]
+
+
+# ------------------------Utils for Steric Clashes--------------------
+# Adapted from https://github.com/lujiarui/Str2Str/blob/main/src/metrics/metrics.py
+
+def distance_matrix_ca(coords: np.ndarray) -> np.ndarray:
+    """Calculate pairwise CA distance matrix for batched or single-chain coords."""
+    assert coords.ndim in (2, 3), f"CA coords should be 2D or 3D, got {coords.shape}"
+    dX = coords[..., None, :, :] - coords[..., None, :]
+    return np.sqrt(np.sum(dX**2, axis=-1))
+
+
+def pairwise_distance_ca(coords: np.ndarray, k: int = 1) -> np.ndarray:
+    """Return upper-triangle pairwise distances, excluding neighbors by k."""
+    assert coords.ndim in (2, 3), f"CA coords should be 2D or 3D, got {coords.shape}"
+    dist = distance_matrix_ca(coords)
+    L = dist.shape[-1]
+    row, col = np.triu_indices(L, k=k)
+    return dist[..., row, col]
+
+
+def _steric_clash(
+    coords: np.ndarray,
+    ca_vdw_radius: float = 1.7,
+    allowable_overlap: float = 0.4,
+    k_exclusion: int = 0,
+) -> np.ndarray:
+    """
+    Calculate number of CA steric clashes for each structure in batch.
+    Returns shape (B,).
+    """
+    assert np.isnan(coords).sum() == 0, "coords should not contain nan"
+    assert coords.ndim in (2, 3), f"CA coords should be 2D or 3D, got {coords.shape}"
+    assert k_exclusion >= 0, "k_exclusion should be non-negative"
+
+    if coords.ndim == 2:
+        coords = coords[None, ...]
+
+    bar = 2 * ca_vdw_radius - allowable_overlap
+    pwd = pairwise_distance_ca(coords, k=k_exclusion + 1)
+    assert pwd.ndim == 2, f"pwd should be 2D, got {pwd.shape}"
+    n_clash = np.sum(pwd < bar, axis=-1)
+    return n_clash.astype(int)
+
+
+def load_ca_coords(pdb_path: Path) -> np.ndarray:
+    """Load CA coordinates from a PDB structure."""
+    atom_array = strucio.load_structure(pdb_path)
+    atom_array = atom_array[struc.filter_amino_acids(atom_array)]
+    ca_mask = atom_array.atom_name == "CA"
+    ca_atoms = atom_array[ca_mask]
+
+    if ca_atoms.array_length() == 0:
+        raise ValueError(f"No CA atoms found in {pdb_path}")
+
+    return np.asarray(ca_atoms.coord, dtype=np.float32)
+
+
+def clash_metrics_from_pdb(
+    pdb_path: Path,
+    ca_vdw_radius: float = 1.7,
+    allowable_overlap: float = 0.4,
+    k_exclusion: int = 0,
+) -> tuple[int, float, int]:
+    """
+    Return (num_ca_clashes, clash_score, n_atoms).
+    clash_score is number of clashes per 1000 CA atoms.
+    """
+    ca_coords = load_ca_coords(pdb_path)
+    n_atoms = int(ca_coords.shape[0])
+    # print(ca_coords)
+    n_clash = int(
+        _steric_clash(
+            ca_coords,
+            ca_vdw_radius=ca_vdw_radius,
+            allowable_overlap=allowable_overlap,
+            k_exclusion=k_exclusion,
+        )[0]
+    )
+    clash_score = (1000.0 * n_clash / n_atoms) if n_atoms > 0 else 0.0
+    return n_clash, clash_score, n_atoms
 
 
 # ------------------------Utils for Unconditional Generation--------------------
