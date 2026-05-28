@@ -1399,10 +1399,6 @@ def _compute_metrics_for_positions(
         if design_res.array_length() == 0: continue
         if require_same_aa and design_res.res_name[0] != native_res.res_name[0]: continue
 
-        #print(native_key, scaffold_idx)
-        #print("native:", native_res.res_name[0], list(native_res.atom_name))
-        #print("design:", design_res.res_name[0], list(design_res.atom_name))
-
         n_xyz, d_xyz = _residue_atom_pairs(native_res, design_res, atom_mode=atom_mode)
         if len(n_xyz) == 0: 
             continue
@@ -1416,7 +1412,6 @@ def _compute_metrics_for_positions(
     n_arr = np.vstack(native_coords)
     d_arr = np.vstack(design_coords)
     rmsd_val = superimpose_rmsd(d_arr, n_arr)
-    #print(f"n_arr: {n_arr}, d_arr: {d_arr}, rmsd_val {rmsd_val}")
 
     return rmsd_val, int(len(native_coords)), used_res
 
@@ -1426,7 +1421,7 @@ def compute_sidechain_rmsd(
     native_motif_array: struc.AtomArray,
     mapping: Tuple,
     design_chain: str = "A"
-) -> Dict[str, float]:
+) -> Tuple[float, float, int, int, int, int]:
     design_array = strucio.load_structure(refolded_path, model=1)
 
     sidechain_rmsd, sidechain_n_atoms, sidechain_nres = _compute_metrics_for_positions(
@@ -1438,7 +1433,6 @@ def compute_sidechain_rmsd(
         skip_native_unk=True,
         design_chain=design_chain
     )
-    # print(f"sidechain: rmsd {sidechain_rmsd}, natoms {sidechain_n_atoms}, nres{sidechain_nres}")
 
     aa_rmsd, aa_n_atoms, aa_nres = _compute_metrics_for_positions(
         design_array=design_array,
@@ -1449,7 +1443,6 @@ def compute_sidechain_rmsd(
         skip_native_unk=True,
         design_chain=design_chain
     )
-    # print(f"allatom: rmsd {aa_rmsd}, natoms {aa_n_atoms} nres {aa_nres}")
 
     return [sidechain_rmsd, aa_rmsd, sidechain_n_atoms, sidechain_nres, aa_n_atoms, aa_nres]
 
@@ -1499,7 +1492,7 @@ def _steric_clash(
 
 def load_ca_coords(pdb_path: Path) -> np.ndarray:
     """Load CA coordinates from a PDB structure."""
-    atom_array = strucio.load_structure(pdb_path)
+    atom_array = strucio.load_structure(pdb_path, model=1)
     atom_array = atom_array[struc.filter_amino_acids(atom_array)]
     ca_mask = atom_array.atom_name == "CA"
     ca_atoms = atom_array[ca_mask]
@@ -1522,7 +1515,6 @@ def clash_metrics_from_pdb(
     """
     ca_coords = load_ca_coords(pdb_path)
     n_atoms = int(ca_coords.shape[0])
-    # print(ca_coords)
     n_clash = int(
         _steric_clash(
             ca_coords,
