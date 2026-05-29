@@ -1062,20 +1062,18 @@ class MotifEvaluator:
             # Process results and calculate diversity and novelty
             complete_results, successful_backbones, designability_count, pdb_count, closest_contender, additional_metrics = self._process_results(prefix)
             diversity, successful_backbone_dir, unique_clusters, clusters_information = self._evaluate_diversity(successful_backbones, prefix)
-            
-            """
+                        
             novelty_score = self._evaluate_novelty(
                 complete_results=complete_results,
                 successful_backbone_dir=successful_backbone_dir,
                 unique_backbones_dir=unique_clusters,
                 clusters=clusters_information, 
                 prefix=prefix)
-            """
 
             # Collect results
             diversity_results[prefix] = diversity
-            # novelty_results[prefix] = novelty_score
-            novelty_results[prefix] = 0.0
+            novelty_results[prefix] = novelty_score
+            # novelty_results[prefix] = 0.0
             designability_counts[prefix] = designability_count
             pdb_counts[prefix] = pdb_count
 
