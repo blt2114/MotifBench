@@ -162,10 +162,14 @@ def calculate_secondary_structure(
 
     alpha_composition = (sse_format.count("H") + sse_format.count("G") + sse_format.count("I")) / len(sse_format) if len(sse_format) > 0 else 0
     beta_composition = (sse_format.count("B") + sse_format.count("E")) / len(sse_format) if len(sse_format) > 0 else 0
-    coil_composition = (sse_format.count("C") + sse_format.count("S")) / len(sse_format) if len(sse_format) > 0 else 0
+    loop_composition = sse_format.count("C")  / len(sse_format) if len(sse_format) > 0 else 0
     turn_composition = sse_format.count("T") / len(sse_format) if len(sse_format) > 0 else 0
+    bend_composition = sse_format.count("S") / len(sse_format) if len(sse_format) > 0 else 0
 
-    return [sse_format, alpha_composition, beta_composition, coil_composition, turn_composition]
+    return [
+        sse_format, alpha_composition, beta_composition, loop_composition,
+        turn_composition, bend_composition
+        ]
 
 
 def radius_of_gyration(
@@ -815,33 +819,6 @@ def analyze_success_rate(
     return merged_data, summary_data, success_count, successful_backbones, closest_contender_df
 
 
-def _process_results(self, prefix: str):
-    """Process results for a single folding method."""
-    results_df, pdb_count = csv_merge(root_dir=self._result_dir, prefix=prefix)
-
-    # Analyze outputs
-    complete_results, summary_results, designability_count, backbones = analyze_success_rate(
-        merged_data=results_df, group_mode="all", prefix=prefix
-    )
-
-    summary_csv_path = os.path.join(self._result_dir, f"{prefix}_summary_results.csv")
-    complete_csv_path = os.path.join(self._result_dir, f"{prefix}_complete_results.csv")
-    complete_results.to_csv(complete_csv_path, index=False)
-    summary_column_order = [
-        "sample_idx",
-        "Success",
-        "rmsd",
-        "motif_rmsd",
-        "length",
-        "sequence",
-        "sample_path",
-        "backbone_path",
-    ]
-    summary_results.to_csv(summary_csv_path, columns=summary_column_order, index=False)
-
-    return complete_results, backbones, designability_count, pdb_count
-
-
 def format_chain_positions(positions: List[str]) -> str:
     if not positions:
         return ""
@@ -955,6 +932,7 @@ def write_summary_results(
 def write_auxiliary_metrics(
     stored_path: Union[str, Path],
     auxiliary_results: Optional[Union[str, Path, pd.DataFrame]] = None,
+    additional_metrics: Optional[Dict] = None,
     prefix: Optional[str] = None
 ) -> None:
 
@@ -968,14 +946,48 @@ def write_auxiliary_metrics(
         closest_contender_designability = "\\"
         closest_contender_scaffold = "\\"
         closest_contender_refold = "\\"
+        
+    if not additional_metrics is None:
+        avg_sidechain_rmsd = additional_metrics['avg_sidechain_rmsd']
+        avg_aa_rmsd = additional_metrics['avg_aa_rmsd']
+        avg_alpha = additional_metrics['avg_alpha_composition']
+        avg_beta = additional_metrics['avg_beta_composition']
+        avg_loop = additional_metrics['avg_loop_composition']
+        avg_turn = additional_metrics['avg_turn_composition']
+        avg_bend = additional_metrics['avg_bend_composition']
+        avg_num_ca_clashes = additional_metrics['avg_num_ca_clashes']
+        avg_clash_score = additional_metrics['avg_clash_score']
+    else:
+        avg_sidechain_rmsd = "\\"
+        avg_aa_rmsd = "\\"
+        avg_alpha = "\\"
+        avg_beta = "\\"
+        avg_loop = "\\"
+        avg_turn = "\\"
+        avg_bend = "\\"
+        avg_num_ca_clashes = "\\"
+        avg_clash_score = "\\"
 
     # Formatting
     summary_table = [
         ["Evaluated Protein", os.path.basename(os.path.normpath(stored_path))],
+        [" // Closest Contender // ", ""],
         ["Closest Contender (Scaffold)", closest_contender_scaffold],
         ["Closest Contender (Refolded Structure)", closest_contender_refold],
         ["Closest Motif-RMSD (Å)", closest_motif_rmsd],
         ["Scaffold RMSD of Closest Contender (Å)", closest_contender_designability],
+        [" // Side chain Related Metrics // ", ""],
+        ["Average Side Chain RMSD of Fixed Positions in Motif (Å)", avg_sidechain_rmsd],
+        ["Average All-Atom RMSD of Fixed Positions in Motif (Å)", avg_aa_rmsd],
+        [" // Secondary Structure Composition // ", ""],
+        ["Alpha Helix (%)", avg_alpha],
+        ["Beta Strand (%)", avg_beta],
+        ["Loop (%)", avg_loop],
+        ["Turn (%)", avg_turn],
+        ["Bend (%)", avg_bend],
+        [" // Steric Clashes // ", ""],
+        ["Number of CA Clashes per Scaffold", avg_num_ca_clashes],
+        ["Clash Score ", avg_clash_score]
     ]
     formatted_table = tabulate(summary_table, tablefmt="grid", numalign="center")
 
