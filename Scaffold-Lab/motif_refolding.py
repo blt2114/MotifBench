@@ -803,7 +803,7 @@ class MotifEvaluator:
             self.prefix = 'af2'
 
 
-    def _process_results(self, prefix: str) -> Tuple[pd.DataFrame, set[str], int, int, pd.DataFrame | None, Dict]:
+    def _process_results(self, prefix: str) -> Tuple[pd.DataFrame, set[str], int, int, Union[pd.DataFrame, None], Dict]:
         """Process results for a single forward folding method (ESMFold / AF2)."""
         results_df, pdb_count = au.csv_merge(root_dir=self._result_dir, prefix=prefix)
 

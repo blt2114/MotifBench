@@ -39,3 +39,4 @@ dependencies:
       - psutil
       - hydra-joblib-launcher
       - ml_collections
+      - ninja==1.11.1.1
