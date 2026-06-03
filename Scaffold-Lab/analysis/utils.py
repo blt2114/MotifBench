@@ -149,9 +149,11 @@ def rmsd(
 
 def calculate_secondary_structure(
     input: Union[str, struc.AtomArray] = None,
-) -> Optional[list]:
+) -> List:
     """
-    Calculate protein secondary structure.
+    Calculate secondary structure contents.
+    This is based on the 8-string DSSP, and we categorized into
+    helix, strand, loop, turn and bend. 
     """
     array = strucio.load_structure(input)
     app = dssp.DsspApp(array)
@@ -167,8 +169,8 @@ def calculate_secondary_structure(
     bend_composition = sse_format.count("S") / len(sse_format) if len(sse_format) > 0 else 0
 
     return [
-        sse_format, alpha_composition, beta_composition, loop_composition,
-        turn_composition, bend_composition
+        sse_format, alpha_composition, beta_composition, 
+        loop_composition, turn_composition, bend_composition
         ]
 
 
@@ -721,7 +723,6 @@ def csv_merge(
                 df = pd.read_csv(csv_path)
 
                 parent_dir = os.path.abspath(os.path.join(root, os.pardir))
-                #print(parent_dir)
                 pdb_files = glob.glob(os.path.join(parent_dir, '*.pdb'))
 
                 # Check if there is more than one .pdb file
@@ -761,7 +762,6 @@ def read_folding_method(
 def analyze_success_rate(
         merged_data: Union[str, Path, pd.DataFrame], 
         group_mode: str = "all",
-        prefix: str = "esm"
     ):
 
     # Define success criteria for each sample
@@ -800,12 +800,10 @@ def analyze_success_rate(
         success_count.update(success_per_pdb.to_dict())
         successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
 
-    #print(f'merged_data.columns: {set(merged_data.columns)}')
 
     summary_data = merged_data.drop(columns=["header", "refold_motif_rmsd", "ptm", "pae",
     "plddt", "folding_method", "backbone_success", "motif_success", "seq_backbone_hit", "seq_motif_hit",
     "backbone_motif_rmsd", "mpnn_score", "tm_score"], inplace=False)
-    #print(f'summary_data.columns: {set(summary_data.columns)}\nmerged_data.columns: {set(merged_data.columns)}\n')
 
     # Find closest contender
     designable_scaffolds = merged_data[merged_data["rmsd"] < 2.0]
@@ -1300,7 +1298,7 @@ def reindex_pdb_residues(
     output_file: Union[str, Path],
     original_start_index: int = 0,
     reindex_start: int = 1
-):
+) -> bool:
     """
     Reindex the starting residue number in a PDB file.
     If the original file already starts from the desired index, no changes are made.
@@ -1433,9 +1431,11 @@ def compute_sidechain_rmsd(
     native_motif_array: struc.AtomArray,
     mapping: Tuple,
     design_chain: str = "A"
-) -> Tuple[float, float, int, int, int, int]:
+) -> Dict[str, float]:
+    """Wrapper for side chain RMSD calculation."""
     design_array = strucio.load_structure(refolded_path, model=1)
 
+    # Side chain RMSD (excluding backbone atoms) in restricted positions
     sidechain_rmsd, sidechain_n_atoms, sidechain_nres = _compute_metrics_for_positions(
         design_array=design_array,
         native_motif_array=native_motif_array,
@@ -1446,6 +1446,7 @@ def compute_sidechain_rmsd(
         design_chain=design_chain
     )
 
+    # All-atom RMSD in restrited positions
     aa_rmsd, aa_n_atoms, aa_nres = _compute_metrics_for_positions(
         design_array=design_array,
         native_motif_array=native_motif_array,
@@ -1504,7 +1505,7 @@ def _steric_clash(
 
 def load_ca_coords(pdb_path: Path) -> np.ndarray:
     """Load CA coordinates from a PDB structure."""
-    atom_array = strucio.load_structure(pdb_path, model=1)
+    atom_array = strucio.load_structure(pdb_path)
     atom_array = atom_array[struc.filter_amino_acids(atom_array)]
     ca_mask = atom_array.atom_name == "CA"
     ca_atoms = atom_array[ca_mask]
@@ -1585,10 +1586,7 @@ def analyze_success_rate_uncond(
 
         successful_backbones = set(merged_data[merged_data['Success'] == True]['backbone_path'])
 
-    #print(f'merged_data.columns: {set(merged_data.columns)}')
-
     summary_data = merged_data.drop(columns=["header", "mpnn_score"], inplace=False)
-    #print(f'summary_data.columns: {set(summary_data.columns)}\nmerged_data.columns: {set(merged_data.columns)}\n')
 
     # Find best contender
     designable_scaffolds = merged_data[merged_data["rmsd"] < 2] if metric == 'rmsd' else merged_data[merged_data["tm_score"] > 0.5]

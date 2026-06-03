@@ -11,14 +11,12 @@ To run ESMFold and AlphaFold2 simultaneously:
 """
 
 import os
-import tree
 import time
 import json
 import numpy as np
 import hydra
 import torch
 import subprocess
-import re
 import random
 import logging
 import warnings
@@ -805,7 +803,7 @@ class MotifEvaluator:
             self.prefix = 'af2'
 
 
-    def _process_results(self, prefix: str):
+    def _process_results(self, prefix: str) -> Tuple[pd.DataFrame, set[str], int, int, pd.DataFrame | None, Dict]:
         """Process results for a single forward folding method (ESMFold / AF2)."""
         results_df, pdb_count = au.csv_merge(root_dir=self._result_dir, prefix=prefix)
 
@@ -814,20 +812,18 @@ class MotifEvaluator:
             merged_data=results_df, group_mode="all", prefix=prefix
         )
         
-        # Secondary tructure
+        # Secondary structure
         success_df = complete_results[complete_results['backbone_path'].isin(successful_backbones)]
-        # group by 'backbone_path' and find the column with lowest value in 'rmsd' for each group
+        # group by 'backbone_path' and find the column with most designable for each successful scaffold
         idx = success_df.groupby('backbone_path')['rmsd'].idxmin()
         best_success_df = success_df.loc[idx]
-        # Calculate secondary structure for each 'sample_path' in 'best_success_df'
-        # The calculation function is `au.calculate_secondary_structure` with input as `sample_path`
-        # Returned value is a list of [sse_string, alpha_composition, beta_composition, loop_composition]
-        # Add these values as new columns in 'best_success_df'
-        best_success_df[['sse_string', 'alpha_composition', 'beta_composition', 'loop_composition', 'turn_composition', 'bend_composition']] = best_success_df.apply(
+        best_success_df[
+            ['sse_string', 'alpha_composition', 'beta_composition', 'loop_composition', 
+             'turn_composition', 'bend_composition']
+            ] = best_success_df.apply(
             lambda row: pd.Series(au.calculate_secondary_structure(row['sample_path'])),
             axis=1
         )
-        # Calculate the avg of alpha_composition, beta_composition, loop_composition for all successful backbones and log them.
         avg_alpha = best_success_df['alpha_composition'].mean()
         avg_beta = best_success_df['beta_composition'].mean()
         avg_loop = best_success_df['loop_composition'].mean()
@@ -855,13 +851,9 @@ class MotifEvaluator:
         
         # Side chain RMSD
         # Calculate average side chain RMSD for all successful entries
-        # 'fixedpos_sidechain_rmsd' and 'fixedpos_aa_rmsd' columns
         avg_sidechain_rmsd = success_df['fixedpos_sidechain_rmsd'].astype(float).mean() if 'fixedpos_sidechain_rmsd' in success_df.columns else float('nan')
         avg_aa_rmsd = success_df['fixedpos_aa_rmsd'].astype(float).mean() if 'fixedpos_aa_rmsd' in success_df.columns else float('nan')
         
-        # Write secondary structure and clash summary into a dict,
-        # As additional returned values to be written into summary file later.
-        # If there is None or nan value, replace it with "N/A" in the dict.
         additional_metrics = {
             "avg_alpha_composition": f"{avg_alpha:.3f}" if not pd.isna(avg_alpha) else "N/A",
             "avg_beta_composition": f"{avg_beta:.3f}" if not pd.isna(avg_beta) else "N/A",
@@ -1073,7 +1065,6 @@ class MotifEvaluator:
             # Collect results
             diversity_results[prefix] = diversity
             novelty_results[prefix] = novelty_score
-            # novelty_results[prefix] = 0.0
             designability_counts[prefix] = designability_count
             pdb_counts[prefix] = pdb_count
 
