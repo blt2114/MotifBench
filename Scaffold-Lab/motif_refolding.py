@@ -809,26 +809,40 @@ class MotifEvaluator:
 
         # Analyze outputs
         complete_results, summary_results, designability_count, successful_backbones, closest_contender = au.analyze_success_rate(
-            merged_data=results_df, group_mode="all", prefix=prefix
+            merged_data=results_df, group_mode="all"
         )
         
         # Secondary structure
+        sse_cols = [
+            'sse_string',
+            'alpha_composition',
+            'beta_composition',
+            'loop_composition',
+            'turn_composition',
+            'bend_composition',
+        ]
+
         success_df = complete_results[complete_results['backbone_path'].isin(successful_backbones)]
-        # group by 'backbone_path' and find the column with most designable for each successful scaffold
-        idx = success_df.groupby('backbone_path')['rmsd'].idxmin()
-        best_success_df = success_df.loc[idx]
-        best_success_df[
-            ['sse_string', 'alpha_composition', 'beta_composition', 'loop_composition', 
-             'turn_composition', 'bend_composition']
-            ] = best_success_df.apply(
-            lambda row: pd.Series(au.calculate_secondary_structure(row['sample_path'])),
-            axis=1
-        )
-        avg_alpha = best_success_df['alpha_composition'].mean()
-        avg_beta = best_success_df['beta_composition'].mean()
-        avg_loop = best_success_df['loop_composition'].mean()
-        avg_turn = best_success_df['turn_composition'].mean()
-        avg_bend = best_success_df['bend_composition'].mean()
+
+        if success_df.empty:
+            self._log.info(f"No successful backbones for {prefix}; skipping secondary structure calculation.")
+            avg_alpha = avg_beta = avg_loop = avg_turn = avg_bend = np.nan
+        else:
+            idx = success_df.groupby('backbone_path')['rmsd'].idxmin()
+            best_success_df = success_df.loc[idx].copy()
+
+            sse_df = pd.DataFrame(
+                best_success_df['sample_path'].apply(au.calculate_secondary_structure).tolist(),
+                index=best_success_df.index,
+                columns=sse_cols,
+            )
+            best_success_df[sse_cols] = sse_df
+
+            avg_alpha = best_success_df['alpha_composition'].mean()
+            avg_beta = best_success_df['beta_composition'].mean()
+            avg_loop = best_success_df['loop_composition'].mean()
+            avg_turn = best_success_df['turn_composition'].mean()
+            avg_bend = best_success_df['bend_composition'].mean()
         
 
         # Steric clashes

@@ -144,6 +144,8 @@ done
 
 # Or run on the whole set of scaffolds in parallel on a Slurm cluster
 ./scripts/launch_all.sh config.txt
+# If the evaluated scaffolds are based on only CA atoms, you can specify the CA-only ProteinMPNN
+./scripts/launch_all.sh config.txt --ca-only
 ```
 
 Finally, compile results as:

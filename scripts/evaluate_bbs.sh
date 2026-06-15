@@ -6,14 +6,33 @@
 #SBATCH --mem=128GB
 
 # Check that a motif, and config file are specified
-if [ "$#" -ne 2 ]; then
-    echo "Usage: ./evaluate_bbs.sh motif_name config_file"
-    echo "For example: ./evaluate_bbs.sh 01_1LDB config.txt"
+if [ "$#" -lt 2 ]; then
+    echo "Usage: ./evaluate_bbs.sh motif_name config_file [refolding_options]"
+    echo "For example: ./evaluate_bbs.sh 01_1LDB config.txt --ca-only"
     exit 1
 fi
 
 motif_name=$1
 config_file=$2
+
+shift 2
+
+hydra_overrides=()
+for option in "$@"; do
+    case "$option" in
+        --ca-only)
+            hydra_overrides+=("inference.CA_only=True")
+            ;;
+        *=*)
+            hydra_overrides+=("$option")
+            ;;
+        *)
+            echo "Error: Unknown option '$option'"
+            exit 1
+            ;;
+    esac
+done
+
 echo "Running on motif: $motif_name"
 
 # Check if the configuration file exists
@@ -60,3 +79,4 @@ $python_path $benchmark_dir/Scaffold-Lab/motif_refolding.py \
     inference.output_dir=$output_dir \
     evaluation.foldseek_database=$foldseek_db_path \
     inference.force_motif_AA_type=True \
+    "${hydra_overrides[@]}"
