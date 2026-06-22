@@ -11,14 +11,12 @@ To run ESMFold and AlphaFold2 simultaneously:
 """
 
 import os
-import tree
 import time
 import json
 import numpy as np
 import hydra
 import torch
 import subprocess
-import re
 import random
 import logging
 import warnings
@@ -805,14 +803,47 @@ class MotifEvaluator:
             self.prefix = 'af2'
 
 
-    def _process_results(self, prefix: str):
+    def _process_results(self, prefix: str) -> Tuple[pd.DataFrame, set[str], int, int, Union[pd.DataFrame, None], Dict]:
         """Process results for a single forward folding method (ESMFold / AF2)."""
         results_df, pdb_count = au.csv_merge(root_dir=self._result_dir, prefix=prefix)
 
         # Analyze outputs
         complete_results, summary_results, designability_count, successful_backbones, closest_contender = au.analyze_success_rate(
-            merged_data=results_df, group_mode="all", prefix=prefix
+            merged_data=results_df, group_mode="all"
         )
+        
+        # Secondary structure
+        sse_cols = [
+            'sse_string',
+            'alpha_composition',
+            'beta_composition',
+            'loop_composition',
+            'turn_composition',
+            'bend_composition',
+        ]
+
+        success_df = complete_results[complete_results['backbone_path'].isin(successful_backbones)]
+
+        if success_df.empty:
+            self._log.info(f"No successful backbones for {prefix}; skipping secondary structure calculation.")
+            avg_alpha = avg_beta = avg_loop = avg_turn = avg_bend = np.nan
+        else:
+            idx = success_df.groupby('backbone_path')['rmsd'].idxmin()
+            best_success_df = success_df.loc[idx].copy()
+
+            sse_df = pd.DataFrame(
+                best_success_df['sample_path'].apply(au.calculate_secondary_structure).tolist(),
+                index=best_success_df.index,
+                columns=sse_cols,
+            )
+            best_success_df[sse_cols] = sse_df
+
+            avg_alpha = best_success_df['alpha_composition'].mean()
+            avg_beta = best_success_df['beta_composition'].mean()
+            avg_loop = best_success_df['loop_composition'].mean()
+            avg_turn = best_success_df['turn_composition'].mean()
+            avg_bend = best_success_df['bend_composition'].mean()
+        
 
         # Steric clashes
         clash_records = []
@@ -831,6 +862,23 @@ class MotifEvaluator:
         )
         avg_num_ca_clashes = clash_results["num_ca_clashes"].mean() if len(clash_results) > 0 else 0.0
         avg_clash_score = clash_results["clash_score"].mean() if len(clash_results) > 0 else 0.0
+        
+        # Side chain RMSD
+        # Calculate average side chain RMSD for all successful entries
+        avg_sidechain_rmsd = success_df['fixedpos_sidechain_rmsd'].astype(float).mean() if 'fixedpos_sidechain_rmsd' in success_df.columns else float('nan')
+        avg_aa_rmsd = success_df['fixedpos_aa_rmsd'].astype(float).mean() if 'fixedpos_aa_rmsd' in success_df.columns else float('nan')
+        
+        additional_metrics = {
+            "avg_alpha_composition": f"{avg_alpha:.3f}" if not pd.isna(avg_alpha) else "N/A",
+            "avg_beta_composition": f"{avg_beta:.3f}" if not pd.isna(avg_beta) else "N/A",
+            "avg_loop_composition": f"{avg_loop:.3f}" if not pd.isna(avg_loop) else "N/A",
+            "avg_turn_composition": f"{avg_turn:.3f}" if not pd.isna(avg_turn) else "N/A",
+            "avg_bend_composition": f"{avg_bend:.3f}" if not pd.isna(avg_bend) else "N/A",
+            "avg_num_ca_clashes": f"{avg_num_ca_clashes:.3f}" if not pd.isna(avg_num_ca_clashes) else "N/A",
+            "avg_clash_score": f"{avg_clash_score:.3f}" if not pd.isna(avg_clash_score) else "N/A",
+            "avg_sidechain_rmsd": f"{avg_sidechain_rmsd:.3f}" if not pd.isna(avg_sidechain_rmsd) else "N/A",
+            "avg_aa_rmsd": f"{avg_aa_rmsd:.3f}" if not pd.isna(avg_aa_rmsd) else "N/A",
+        }
 
         # Write summaries
         summary_csv_path = os.path.join(self._result_dir, f"{prefix}_summary_results.csv")
@@ -870,7 +918,7 @@ class MotifEvaluator:
         else:
             self._log.info(f"There will not be closest contender since no designable scaffold detected.")
 
-        return complete_results, successful_backbones, designability_count, pdb_count, closest_contender
+        return complete_results, successful_backbones, designability_count, pdb_count, closest_contender, additional_metrics
 
 
     def _evaluate_diversity(
@@ -1018,8 +1066,9 @@ class MotifEvaluator:
             prefix = "esm" if method == "ESMFold" else "af2"
 
             # Process results and calculate diversity and novelty
-            complete_results, successful_backbones, designability_count, pdb_count, closest_contender = self._process_results(prefix)
+            complete_results, successful_backbones, designability_count, pdb_count, closest_contender, additional_metrics = self._process_results(prefix)
             diversity, successful_backbone_dir, unique_clusters, clusters_information = self._evaluate_diversity(successful_backbones, prefix)
+                        
             novelty_score = self._evaluate_novelty(
                 complete_results=complete_results,
                 successful_backbone_dir=successful_backbone_dir,
@@ -1037,6 +1086,7 @@ class MotifEvaluator:
             au.write_auxiliary_metrics(
                 stored_path=self._result_dir,
                 auxiliary_results=closest_contender,
+                additional_metrics=additional_metrics,
                 prefix=prefix
             )
 

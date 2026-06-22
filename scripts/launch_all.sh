@@ -1,10 +1,13 @@
 # Check that a motif, and config file are specified
-if [ "$#" -ne 1 ]; then
-    echo "Usage: ./launch_all_slurm.sh <config.txt>"
+if [ "$#" -lt 1 ]; then
+    echo "Usage: ./launch_all.sh <config.txt> [refolding_options...]"
+    echo "Example: ./launch_all.sh config.txt --ca-only"
     exit 1
 fi
 # Source the configuration file
 config_path=$1
+shift
+refolding_options=("$@")
 source "$config_path"
 
 # Ensure necessary variables are set in the config file
@@ -24,5 +27,5 @@ mkdir -p $log_dir
 ls $scaffold_base_dir | grep -E '^[0-9]{2}_.{4}$' | while read motif_name; do
     out_fn=$log_dir/$motif_name.%j.out
     err_fn=$log_dir/$motif_name.%j.err
-    sbatch --output=$out_fn --error=$err_fn $benchmark_dir/scripts/evaluate_bbs.sh $motif_name $config_path
+    sbatch --output=$out_fn --error=$err_fn $benchmark_dir/scripts/evaluate_bbs.sh $motif_name $config_path "${refolding_options[@]}"
 done
