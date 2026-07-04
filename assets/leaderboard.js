@@ -1,5 +1,6 @@
 (function () {
   const README_URL = "../readme.md";
+  const README_FALLBACK_URL = "https://raw.githubusercontent.com/blt2114/MotifBench/zqzheng/readme.md";
   const TABLE_HEADERS = ["Entry Name", "MotifBench Score"];
 
   function escapeHtml(value) {
@@ -182,9 +183,7 @@
 
   async function loadLeaderboard() {
     try {
-      const response = await fetch(`${README_URL}?cache=${Date.now()}`);
-      if (!response.ok) throw new Error(`Could not fetch readme.md: ${response.status}`);
-      const markdown = await response.text();
+      const markdown = await fetchReadme();
       const rows = parseMarkdownTable(extractLeaderboardTable(markdown));
       renderSummary(rows);
       renderChart(rows);
@@ -197,8 +196,22 @@
     }
   }
 
+  async function fetchReadme() {
+    const cacheBuster = `cache=${Date.now()}`;
+    for (const url of [README_URL, README_FALLBACK_URL]) {
+      try {
+        const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}${cacheBuster}`);
+        if (response.ok) return response.text();
+      } catch (error) {
+        // Try the next source.
+      }
+    }
+    throw new Error("Could not fetch the leaderboard source README.");
+  }
+
   window.MotifBenchLeaderboard = {
     extractLeaderboardTable,
+    fetchReadme,
     markdownLinkToHtml,
     parseMarkdownTable,
     splitMarkdownRow,
