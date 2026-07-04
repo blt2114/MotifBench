@@ -1,6 +1,8 @@
 (function () {
-  const README_URL = "../readme.md";
-  const README_FALLBACK_URL = "https://raw.githubusercontent.com/blt2114/MotifBench/zqzheng/readme.md";
+  const isLocalServer = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+  const README_URL = isLocalServer
+    ? "../readme.md"
+    : "https://raw.githubusercontent.com/blt2114/MotifBench/zqzheng/readme.md";
   const TABLE_HEADERS = ["Entry Name", "MotifBench Score"];
 
   function escapeHtml(value) {
@@ -198,14 +200,8 @@
 
   async function fetchReadme() {
     const cacheBuster = `cache=${Date.now()}`;
-    for (const url of [README_URL, README_FALLBACK_URL]) {
-      try {
-        const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}${cacheBuster}`);
-        if (response.ok) return response.text();
-      } catch (error) {
-        // Try the next source.
-      }
-    }
+    const response = await fetch(`${README_URL}?${cacheBuster}`);
+    if (response.ok) return response.text();
     throw new Error("Could not fetch the leaderboard source README.");
   }
 

@@ -19,7 +19,7 @@ In this companion repository we provide:
 * Suggestions on how to improve the metrics and evaluation pipeline.
 
 > [!TIP]
-> Click [here](https://blt2114.github.io/MotifBench/assets/) to browse the leaderboard!
+> Click [here](https://blt2114.github.io/MotifBench/) to browse the leaderboard!
 
 # Test-Cases
 
