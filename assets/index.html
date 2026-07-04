@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MotifBench Leaderboard</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <header class="hero">
+      <nav class="topbar" aria-label="Primary">
+        <a class="brand" href="./" aria-label="MotifBench home">
+          <img src="logo.png" alt="MotifBench logo">
+        </a>
+        <a class="repo-link" href="../readme.md">README source</a>
+      </nav>
+
+      <section class="hero-grid" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Motif scaffolding benchmark</p>
+          <h1 id="page-title">MotifBench Leaderboard</h1>
+          <p class="description">
+            MotifBench is a standardized protein design benchmark for motif-scaffolding problems.
+            The motif-scaffolding problem is a central task in computational protein design:
+            given the coordinates of atoms in a geometry chosen to confer a desired biochemical function
+            (a motif), the goal is to identify diverse protein structures (scaffolds) that include the
+            motif and stabilize its geometry.
+          </p>
+          <div class="summary-strip" aria-label="Leaderboard summary">
+            <div>
+              <span id="entry-count">--</span>
+              <small>submitted methods</small>
+            </div>
+            <div>
+              <span id="top-score">--</span>
+              <small>top score</small>
+            </div>
+            <div>
+              <span id="latest-date">--</span>
+              <small>latest date</small>
+            </div>
+          </div>
+        </div>
+      </section>
+    </header>
+
+    <main>
+      <section class="panel" aria-labelledby="chart-title">
+        <div class="section-heading">
+          <p id="chart-title" class="eyebrow">Ranked by MotifBench score</p>
+        </div>
+        <div id="status" class="status" aria-live="polite"></div>
+        <div id="score-chart" class="score-chart" aria-live="polite"></div>
+      </section>
+
+      <section class="panel table-panel" aria-labelledby="table-title">
+        <div class="section-heading">
+          <p id="table-title" class="eyebrow">Leaderboard table</p>
+        </div>
+        <div class="table-scroll">
+          <table id="leaderboard-table"></table>
+        </div>
+      </section>
+
+      <section class="panel references" aria-label="References">
+        <p class="eyebrow">References</p>
+        <div class="reference-grid">
+          <a href="https://github.com/blt2114/MotifBench" target="_blank" rel="noopener noreferrer">
+            <span>
+              <small>GitHub</small>
+              <strong>MotifBench repository</strong>
+            </span>
+            <em>Open</em>
+          </a>
+          <a href="https://arxiv.org/abs/2502.12479" target="_blank" rel="noopener noreferrer">
+            <span>
+              <small>Preprint</small>
+              <strong>arXiv:2502.12479</strong>
+            </span>
+            <em>Open</em>
+          </a>
+          <div class="citation">
+            <span>Citation</span>
+            <p>
+              Zhuoqi Zheng, Bo Zhang, Kieran Didi, Kevin K. Yang, Jason Yim,
+              Joseph L. Watson, Hai-Feng Chen, and Brian L. Trippe.
+              <strong>MotifBench: A standardized protein design benchmark for
+              motif-scaffolding problems.</strong> arXiv, 2025.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="leaderboard.js"></script>
+  </body>
+</html>

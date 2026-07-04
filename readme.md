@@ -18,6 +18,9 @@ In this companion repository we provide:
 * Additional motifs to include as test cases.  Sharing a problem you think is important could help direct community effort towards unsolved problems.
 * Suggestions on how to improve the metrics and evaluation pipeline.
 
+> [!TIP]
+> Click [here](https://blt2114.github.io/MotifBench/assets/) to browse the leaderboard!
+
 # Test-Cases
 
 MotifBench includes 30 test problems.  These problems are specified in `./test_cases.csv`, through reference to experimental structures in the protein data bank.
