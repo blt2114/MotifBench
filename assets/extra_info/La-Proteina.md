@@ -1,4 +1,4 @@
-## Additional information on FrameFlow evaluation results
+## Additional information on La-Proteina evaluation results
 
 The metadata contains three independent runs.
 
