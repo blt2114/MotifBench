@@ -163,7 +163,7 @@ Example summary files by problem are included on [zenodo](https://zenodo.org/rec
 
 # Leaderboard
 
-### The MofifBench Leaderboard
+### The MotifBench Leaderboard
 
 | Entry Name                       | MotifBench Score | Date (month/year) | Contact Name                  | Additional Information                 | Contact Email                             | Estimated compute time (per scaffold) | Metadata                            |                         Project Link                         |
 | -------------------------------- | ---------------- | ----------------- | ----------------------------- | -------------------------------------- | ----------------------------------------- | ------------------------------------- | ----------------------------------- | :----------------------------------------------------------: |
