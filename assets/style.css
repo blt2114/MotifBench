@@ -264,12 +264,12 @@ th {
   text-transform: uppercase;
 }
 
-td:nth-child(1),
-td:nth-child(2) {
+td.entry-name,
+td.entry-score {
   font-weight: 780;
 }
 
-td:nth-child(2) {
+td.entry-score {
   font-variant-numeric: tabular-nums;
 }
 

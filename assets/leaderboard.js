@@ -2,8 +2,9 @@
   const LEADERBOARD_TABLE = String.raw`
 | Entry Name                       | MotifBench Score | Date (month/year) | Contact Name                  | Additional Information                 | Contact Email                             | Estimated compute time (per scaffold) | Metadata                            |                         Project Link                         |
 | -------------------------------- | ---------------- | ----------------- | ----------------------------- | -------------------------------------- | ----------------------------------------- | ------------------------------------- | ----------------------------------- | :----------------------------------------------------------: |
-| **RFdiffusion3** | 43.52 ($\pm$ 1.35) | 08/2026 | Lorenz Kleiter, Brian Trippe | [readme](assets/extra_info/RFdiffusion3.md) | lorenz.kleiter@tum.de, btrippe@stanford.edu | ~12.2s (Various GPU types) | https://zenodo.org/records/22112445 | [Paper](https://www.biorxiv.org/content/10.1101/2025.09.18.676967v2) \| [Codebase](https://github.com/RosettaCommons/foundry) |
-| **Protpardelle-1c (cc91-large)** | 33.81            | 04/2026           | Tianyu Lu, Jessica Jiaxin Lin | NA                                     | tianyulu@stanford.edu, linjj@stanford.edu | ~3s (NVIDIA A100)                     | https://zenodo.org/records/19828416 | [Paper](https://www.biorxiv.org/content/10.1101/2025.08.18.670959v2) \|[Codebase](https://github.com/ProteinDesignLab/protpardelle-1c/tree/main) |
+| **RFD4-Proteina (unindexed + high thinking)** | 60.21 (± 0.57) | 11/2026 | Lorenz Kleiter, Lukas Gerstung | [readme](assets/extra_info/RFD4-Proteina.md) | lorenz.kleiter@tum.de, lukas.gerstung@tum.de | ~7.5s (NVIDIA L40S) | https://zenodo.org/records/23942848 | [Paper](https://github.com/RosettaCommons/RFD4-Proteina/blob/main/website/assets/paper/RFD4-Proteina.pdf) \| [Codebase](https://github.com/RosettaCommons/RFD4-Proteina) |
+| **RFdiffusion3 (indexed)** | 43.52 ($\pm$ 1.35) | 08/2026 | Lorenz Kleiter, Brian Trippe | [readme](assets/extra_info/RFdiffusion3.md) | lorenz.kleiter@tum.de, btrippe@stanford.edu | ~12.2s (Various GPU types) | https://zenodo.org/records/22112445 | [Paper](https://www.biorxiv.org/content/10.1101/2025.09.18.676967v2) \| [Codebase](https://github.com/RosettaCommons/foundry) |
+| **Protpardelle-1c (cc91-large)** | 33.81            | 04/2026           | Tianyu Lu, Jessica Jiaxin Lin | NA                                     | tianyulu@stanford.edu, linjj@stanford.edu | ~3s (NVIDIA A100)                     | https://zenodo.org/records/19828416 | [Paper](https://www.biorxiv.org/content/10.1101/2025.08.18.670959v2) \| [Codebase](https://github.com/ProteinDesignLab/protpardelle-1c/tree/main) |
 | **Genie3**                       | 31.14 ($\pm$ 0.70) | 07/2026           | Genie3 team                   | [readme](assets/extra_info/Genie3.md) | yl4599@columbia.edu                       | ~10s (NVIDIA A100)                    | https://zenodo.org/records/21131140 | [Paper](https://www.biorxiv.org/content/10.64898/2026.05.01.722168v1) \| [Codebase](https://github.com/aqlaboratory/genie3) |
 | **La-Proteina**                  | 29.75 ($\pm$ 0.51) | 07/2026           | Genie3 team                   | [readme](assets/extra_info/La-Proteina.md) | yl4599@columbia.edu                       | ~7s (NVIDIA A100)                     | https://zenodo.org/records/21272894 | [Paper](https://openreview.net/pdf?id=RDerF20JYT) \| [Codebase](https://github.com/NVIDIA-BioNeMo/la-proteina/) |
 | **ODesign-rigid**                | 29.39            | 11/2025           | ODesign team                  | NA                                     | odesign@lglab.ac.cn                       | ~5.2s (NVIDIA GeForce 4090D)          | https://zenodo.org/records/19201706 | [Paper](https://arxiv.org/abs/2510.22304) \| [Codebase](https://github.com/The-Institute-for-AI-Molecular-Design/ODesign) |
@@ -90,15 +91,26 @@
       const row = {};
       headers.forEach((header, index) => {
         const raw = cells[index] || "";
-        const text = stripMarkdown(raw);
-        const number = parseScoreMean(text);
+        const parts = raw.split(/<br\s*\/?>/i).map((part) => {
+          const text = stripMarkdown(part);
+          return { text, html: markdownLinkToHtml(part), number: parseScoreMean(text) };
+        });
         row[header] = {
           raw,
-          text,
-          html: markdownLinkToHtml(raw),
-          number: Number.isFinite(number) ? number : null,
+          text: parts.map((part) => part.text).join("\n"),
+          html: parts.map((part) => part.html).join("<br>"),
+          number: parts[0].number,
+          parts,
         };
       });
+      const count = row["MotifBench Score"]?.parts.length || 1;
+      for (const header of headers) {
+        const expectedCounts = ["Estimated compute time (per scaffold)", "Metadata"].includes(header) ?
+          [count] : [1, count];
+        if (!expectedCounts.includes(row[header].parts.length)) {
+          throw new Error(`Mismatched sub-rows in ${row["Entry Name"]?.text}: ${header}`);
+        }
+      }
       return row;
     });
   }
@@ -109,7 +121,7 @@
   }
 
   function renderSummary(rows) {
-    const scores = rows.map((row) => row["MotifBench Score"]?.number).filter(Number.isFinite);
+    const scores = scoreEntries(rows).map((entry) => entry.score);
     document.getElementById("entry-count").textContent = rows.length;
     document.getElementById("top-score").textContent = scores.length ? Math.max(...scores).toFixed(2) : "--";
     document.getElementById("latest-date").textContent = latestDate(rows);
@@ -127,15 +139,21 @@
     return dates[0]?.label || "--";
   }
 
+  function scoreEntries(rows) {
+    return rows.flatMap((row) => (row["MotifBench Score"]?.parts || []).map((part) => {
+      const label = part.text.match(/\([^)]+-thinking\)/)?.[0];
+      const name = row["Entry Name"]?.text || "Unnamed";
+      return { name: label ? `${name} ${label}` : name, score: part.number };
+    })).filter((entry) => Number.isFinite(entry.score)).sort((a, b) => b.score - a.score);
+  }
+
   function renderChart(rows) {
     const chart = document.getElementById("score-chart");
-    const scores = rows.map((row) => row["MotifBench Score"]?.number).filter(Number.isFinite);
-    const maxScore = scores.length ? Math.max(...scores) : 1;
+    const entries = scoreEntries(rows);
+    const maxScore = entries[0]?.score || 1;
 
-    chart.innerHTML = rows
-      .map((row, index) => {
-        const name = row["Entry Name"]?.text || "Unnamed";
-        const score = row["MotifBench Score"]?.number || 0;
+    chart.innerHTML = entries
+      .map(({ name, score }, index) => {
         const percent = Math.max(3, (score / maxScore) * 100);
         return `
           <article class="score-row">
@@ -169,11 +187,21 @@
       </thead>
       <tbody>
         ${rows
-          .map((row) => `
-            <tr>
-              ${headers.map((header) => `<td>${row[header].html}</td>`).join("")}
-            </tr>
-          `)
+          .map((row) => {
+            const count = row["MotifBench Score"]?.parts.length || 1;
+            return Array.from({ length: count }, (_, index) => `
+              <tr>
+                ${headers.map((header) => {
+                  const parts = row[header].parts;
+                  if (index > 0 && parts.length === 1) return "";
+                  const rowspan = parts.length === 1 && count > 1 ? ` rowspan="${count}"` : "";
+                  const className = header === "Entry Name" ? ' class="entry-name"' :
+                    header === "MotifBench Score" ? ' class="entry-score"' : "";
+                  return `<td${className}${rowspan}>${(parts[index] || parts[0]).html}</td>`;
+                }).join("")}
+              </tr>
+            `).join("");
+          })
           .join("")}
       </tbody>
     `;
