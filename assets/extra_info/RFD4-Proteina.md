@@ -2,6 +2,8 @@
 
 The metadata contains six versions of RFD4-Proteina information on MotifBench (indexed / unindexed + low/medium/high-thinking). For more information please refer to [GitHub repo](https://github.com/Jetzu/RFD4-MotifBench).
 
+Contributor: Lorenz Kleiter (lorenz.kleiter@tum.de), Lukas Gerstung (lukas.gerstung@tum.de)
+
 ### RFD4-Proteina detailed results
 
 The main leaderboard records _unindexed + high-thinking_ mode. All the associated metadata could be found in the [Zenodo link](https://zenodo.org/records/23942848).
