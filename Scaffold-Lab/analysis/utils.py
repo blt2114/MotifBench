@@ -350,7 +350,7 @@ def cleanup_af2_outputs(
             if file.startswith('T_0') == False: # original backbone sequence
                 new_path = os.path.join(clean_dir, 'sample_0.pdb')
                 shutil.copy2(os.path.join(raw_dir, file), new_path)
-                output_dict['sample_0'] = {}
+                output_dict.setdefault("sample_0", {})
                 output_dict['sample_0']['sample_path'] = os.path.abspath(new_path)
             else: # Designed sequence
                 sample_index = os.path.splitext(file)[0].split('sample_')[1].split('__score')[0]
@@ -987,6 +987,16 @@ def write_auxiliary_metrics(
         ["Number of CA Clashes per Scaffold", avg_num_ca_clashes],
         ["Clash Score ", avg_clash_score]
     ]
+    
+    # Co-design results
+    if additional_metrics is not None and "codesign_better_pct" in additional_metrics:
+        summary_table.extend([
+        [" // Co-design Results // ", ""],
+        ["Co-design sequence better (%)", additional_metrics["codesign_better_pct"]],
+        ["Co-design sequence better (among successful scaffolds) (%)",
+         additional_metrics["codesign_better_success_pct"]],
+        ])
+
     formatted_table = tabulate(summary_table, tablefmt="grid", numalign="center")
 
     with open (os.path.join(stored_path, f'{prefix}_auxiliary_metrics.txt'), 'w') as f:

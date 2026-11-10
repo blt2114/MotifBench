@@ -123,6 +123,7 @@ class MotifRefolder:
         self._CA_only = self._infer_conf.CA_only
         self._hide_GPU_from_pmpnn = self._infer_conf.hide_GPU_from_pmpnn
         self._max_backbones = self._infer_conf.samples.max_backbones
+        self._save_co_seq = self._infer_conf.save_codesign_sequence
 
         # Configs for motif-scaffolding
         if self._infer_conf.motif_csv_path is not None:
@@ -508,7 +509,10 @@ class MotifRefolder:
         esmf_dir = os.path.join(decoy_pdb_dir, 'esmf')
         af2_raw_dir = os.path.join(decoy_pdb_dir, 'af2_raw_outputs')
         fasta_seqs = fasta.FastaFile.read(mpnn_fasta_path)
-        filtered_seqs = {header: seq for header, seq in fasta_seqs.items() if header.startswith("T=0")} # Drop original sequence
+        if self._save_co_seq:
+            filtered_seqs = {header: seq for header, seq in fasta_seqs.items()}
+        else:
+            filtered_seqs = {header: seq for header, seq in fasta_seqs.items() if header.startswith("T=0")} # Drop original sequence
         
         if self._sample_conf.sort_by_score:
         # Only take seqs with lowerst global score to enter refolding
@@ -529,7 +533,10 @@ class MotifRefolder:
             print(f'top seqs: {top_seqs}\ntype: {type(top_seqs)}\n')
             _ = au.write_seqs_to_fasta(top_seqs, top_seqs_path)
         else:
-            filtered_seqs = {header: seq for header, seq in fasta_seqs.items() if header.startswith("T=0")}
+            if self._save_co_seq:
+                filtered_seqs = {header: seq for header, seq in fasta_seqs.items()}
+            else:
+                filtered_seqs = {header: seq for header, seq in fasta_seqs.items() if header.startswith("T=0")} # Drop original sequence
             _ = au.write_seqs_to_fasta(filtered_seqs, mpnn_fasta_path)
 
         seqs_to_refold = top_seqs_path if self._sample_conf.sort_by_score else mpnn_fasta_path
@@ -545,7 +552,7 @@ class MotifRefolder:
                 if header.startswith("T=0"):
                     idx = header.split('sample=')[1].split(',')[0]
                     score = float(header.split(", ")[3].split("=")[1])
-                else:
+                else: # Original sequence
                     idx = 0
                     score = float(header.split(", ")[2].split("=")[1])
             # Run ESMFold
@@ -623,7 +630,7 @@ class MotifRefolder:
                     idx = header.split('sample=')[1].split(',')[0]
                     score = float(header.split(", ")[3].split("=")[1])
                 else:
-                    idx = 0
+                    idx = 0 # Original sequence
                     score = float(header.split(", ")[2].split("=")[1])
 
                 af2_sample_path = os.path.join(af2_dir, f'sample_{idx}.pdb')
@@ -769,6 +776,7 @@ class MotifEvaluator:
         self._eval_conf = conf.evaluation
         self._result_dir = self._infer_conf.output_dir
         self._motif_pdb = self._infer_conf.motif_pdb
+        self._save_co_seq = self._infer_conf.save_codesign_sequence
 
         self._foldseek_path = self._eval_conf.foldseek_path
         self._foldseek_database = self._eval_conf.foldseek_database
@@ -917,6 +925,38 @@ class MotifEvaluator:
             shutil.copy(closest_contender_path, os.path.join(closest_scaffold_dir, os.path.basename(closest_contender_path)))
         else:
             self._log.info(f"There will not be closest contender since no designable scaffold detected.")
+
+        # Co-design results
+        if self._save_co_seq:
+            backbones = complete_results["backbone_path"].unique()
+            codesign_rmsd = (
+                complete_results.loc[complete_results["sample_idx"].eq(0)]
+                .groupby("backbone_path")["rmsd"].min().reindex(backbones)
+            )
+            mpnn_rmsd = (
+                complete_results.loc[complete_results["sample_idx"].gt(0)]
+                .groupby("backbone_path")["rmsd"].min().reindex(backbones)
+            )
+            if not np.isfinite(codesign_rmsd).all() or not np.isfinite(mpnn_rmsd).all():
+                raise ValueError(
+                    "Each backbone needs finite co-design and MPNN RMSDs; "
+                    "use a fresh output directory when enabling co-design evaluation."
+                )
+
+            codesign_better = codesign_rmsd.lt(mpnn_rmsd)
+            successful_better = codesign_better.loc[
+                codesign_better.index.isin(successful_backbones)
+            ]
+            additional_metrics["codesign_better_pct"] = (
+                f"{100 * codesign_better.mean():.2f}" if len(codesign_better) else "N/A"
+            )
+            additional_metrics["codesign_better_success_pct"] = (
+                f"{100 * successful_better.mean():.2f}" if len(successful_better) else "N/A"
+            )
+
+            complete_results.loc[complete_results["sample_idx"].eq(0)].to_csv(
+                os.path.join(self._result_dir, f"{prefix}_codesign_results.csv"), index=False
+            )
 
         return complete_results, successful_backbones, designability_count, pdb_count, closest_contender, additional_metrics
 

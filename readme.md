@@ -19,7 +19,10 @@ In this companion repository we provide:
 * Suggestions on how to improve the metrics and evaluation pipeline.
 
 > [!TIP]
-> Click [here](https://htmlpreview.github.io/?https://github.com/blt2114/MotifBench/blob/zqzheng/assets/index.html) to browse through the leaderboard!
+>
+> * Click [here](https://htmlpreview.github.io/?https://github.com/blt2114/MotifBench/blob/zqzheng/assets/index.html) to browse through the leaderboard!
+>
+> * [*Update on Nov. 10th, 2026:*] You can additionally evaluate your co-designed sequences now! To add them into the  loop, set the `save_codesign_sequence` flag to `True` before launching the evaluation.
 
 # Test-Cases
 
@@ -168,7 +171,7 @@ Example summary files by problem are included on [zenodo](https://zenodo.org/rec
 | Entry Name                       | MotifBench Score | Date (month/year) | Contact Name                  | Additional Information                 | Contact Email                             | Estimated compute time (per scaffold) | Metadata                            |                         Project Link                         |
 | -------------------------------- | ---------------- | ----------------- | ----------------------------- | -------------------------------------- | ----------------------------------------- | ------------------------------------- | ----------------------------------- | :----------------------------------------------------------: |
 | **RFD4-Proteina (unindexed + high thinking)** | 60.21 (± 0.57) | 11/2026 | Lorenz Kleiter, Lukas Gerstung | [readme](assets/extra_info/RFD4-Proteina.md) | lorenz.kleiter@tum.de, lukas.gerstung@tum.de | ~7.5s (NVIDIA L40S) | https://zenodo.org/records/23942848 | [Paper](https://github.com/RosettaCommons/RFD4-Proteina/blob/main/website/assets/paper/RFD4-Proteina.pdf) \| [Codebase](https://github.com/RosettaCommons/RFD4-Proteina) |
-| **RFdiffusion3 (indexed)** | 43.52 ($\pm$ 1.35) | 08/2026 | Lorenz Kleiter, Brian Trippe | [readme](assets/extra_info/RFdiffusion3.md) | lorenz.kleiter@tum.de, btrippe@stanford.edu | ~12.2s (Various GPU types) | https://zenodo.org/records/22112445 | [Paper](https://www.biorxiv.org/content/10.1101/2025.09.18.676967v2) \| [Codebase](https://github.com/RosettaCommons/foundry) |
+| **RFdiffusion3 (indexed)** | 43.52 ($\pm$ 1.35) | 08/2026 | Lorenz Kleiter, Brian Trippe | [readme](assets/extra_info/RFdiffusion3.md) | lorenz.kleiter@tum.de, btrippe@stanford.edu | ~12.2s (Various GPU types) | https://zenodo.org/records/22112445 | [Paper](https://www.science.org/doi/10.1126/science.aeh2982) \| [Codebase](https://github.com/RosettaCommons/foundry) |
 | **Protpardelle-1c (cc91-large)** | 33.81            | 04/2026           | Tianyu Lu, Jessica Jiaxin Lin | NA                                     | tianyulu@stanford.edu, linjj@stanford.edu | ~3s (NVIDIA A100)                     | https://zenodo.org/records/19828416 | [Paper](https://www.biorxiv.org/content/10.1101/2025.08.18.670959v2) \| [Codebase](https://github.com/ProteinDesignLab/protpardelle-1c/tree/main) |
 | **Genie3**                       | 31.14 ($\pm$ 0.70) | 07/2026           | Genie3 team                   | [readme](assets/extra_info/Genie3.md) | yl4599@columbia.edu                       | ~10s (NVIDIA A100)                    | https://zenodo.org/records/21131140 | [Paper](https://www.biorxiv.org/content/10.64898/2026.05.01.722168v1) \| [Codebase](https://github.com/aqlaboratory/genie3) |
 | **La-Proteina**                  | 29.75 ($\pm$ 0.51) | 07/2026           | Genie3 team                   | [readme](assets/extra_info/La-Proteina.md) | yl4599@columbia.edu                       | ~7s (NVIDIA A100)                     | https://zenodo.org/records/21272894 | [Paper](https://openreview.net/pdf?id=RDerF20JYT) \| [Codebase](https://github.com/NVIDIA-BioNeMo/la-proteina/) |

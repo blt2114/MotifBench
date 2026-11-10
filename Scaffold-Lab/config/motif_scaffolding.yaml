@@ -19,6 +19,7 @@ inference:
   CA_only: False # Frame-based and CA-only ProteinMPNN could be utilized interchangebly
   hide_GPU_from_pmpnn: True
   force_motif_AA_type: False
+  save_codesign_sequence: False
 
   samples:
     # Max backbones to evaluate and incorporate into results
