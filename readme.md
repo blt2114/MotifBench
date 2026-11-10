@@ -22,7 +22,7 @@ In this companion repository we provide:
 >
 > * Click [here](https://htmlpreview.github.io/?https://github.com/blt2114/MotifBench/blob/zqzheng/assets/index.html) to browse through the leaderboard!
 >
-> * [*Update on Nov. 10th, 2026:*] You can additionally evaluate your co-designed sequences now! To add them into the  loop, set the `save_codesign_sequence` flag to `True` before launching the evaluation.
+> * [*Update on Nov. 10th, 2026*] You can additionally evaluate your co-designed sequences now! To add them into the  loop, set the `save_codesign_sequence` flag to `True` before launching the evaluation.
 
 # Test-Cases
 
