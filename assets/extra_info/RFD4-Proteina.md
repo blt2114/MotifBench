@@ -1,6 +1,6 @@
 ## Additional information on RFD4-Proteina evaluation results
 
-The metadata contains six versions of RFD4-Proteina information on MotifBench (indexed / unindexed + low/medium/high-thinking). For more information please refer to [GitHub repo](https://github.com/Jetzu/RFD4-MotifBench).
+The item displayed in the leaderboard is based on the default setting of RFD4-Proteina. The metadata here contains evaluations on a total of six versions (indexed / unindexed + low/medium/high-thinking). For more information please refer to [GitHub repo](https://github.com/Jetzu/RFD4-MotifBench).
 
 Contributor: Lorenz Kleiter (lorenz.kleiter@tum.de), Lukas Gerstung (lukas.gerstung@tum.de)
 
